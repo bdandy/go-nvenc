@@ -1,0 +1,89 @@
+package nvenc
+
+// #include "headers/guid.h"
+import "C"
+
+var (
+	CODEC_H264_GUID = GUID(C.CODEC_H264_GUID)
+	CODEC_HEVC_GUID = GUID(C.CODEC_HEVC_GUID)
+
+	CODEC_PROFILE_AUTOSELECT_GUID        = GUID(C.CODEC_PROFILE_AUTOSELECT_GUID)
+	H264_PROFILE_BASELINE_GUID           = GUID(C.H264_PROFILE_BASELINE_GUID)
+	H264_PROFILE_MAIN_GUID               = GUID(C.H264_PROFILE_MAIN_GUID)
+	H264_PROFILE_HIGH_GUID               = GUID(C.H264_PROFILE_HIGH_GUID)
+	H264_PROFILE_HIGH_444_GUID           = GUID(C.H264_PROFILE_HIGH_444_GUID)
+	H264_PROFILE_STEREO_GUID             = GUID(C.H264_PROFILE_STEREO_GUID)
+	H264_PROFILE_SVC_TEMPORAL_SCALABILTY = GUID(C.H264_PROFILE_SVC_TEMPORAL_SCALABILTY)
+	H264_PROFILE_PROGRESSIVE_HIGH_GUID   = GUID(C.H264_PROFILE_PROGRESSIVE_HIGH_GUID)
+	H264_PROFILE_CONSTRAINED_HIGH_GUID   = GUID(C.H264_PROFILE_CONSTRAINED_HIGH_GUID)
+	HEVC_PROFILE_MAIN_GUID               = GUID(C.HEVC_PROFILE_MAIN_GUID)
+
+	PRESET_DEFAULT_GUID             = GUID(C.PRESET_DEFAULT_GUID)
+	PRESET_HP_GUID                  = GUID(C.PRESET_HP_GUID)
+	PRESET_HQ_GUID                  = GUID(C.PRESET_HQ_GUID)
+	PRESET_BD_GUID                  = GUID(C.PRESET_BD_GUID)
+	PRESET_LOW_LATENCY_DEFAULT_GUID = GUID(C.PRESET_LOW_LATENCY_DEFAULT_GUID)
+	PRESET_LOW_LATENCY_HQ_GUID      = GUID(C.PRESET_LOW_LATENCY_HQ_GUID)
+	PRESET_LOW_LATENCY_HP_GUID      = GUID(C.PRESET_LOW_LATENCY_HP_GUID)
+	PRESET_LOSSLESS_DEFAULT_GUID    = GUID(C.PRESET_LOSSLESS_DEFAULT_GUID)
+	PRESET_LOSSLESS_HP_GUID         = GUID(C.PRESET_LOSSLESS_HP_GUID)
+)
+
+type GUID C.GUID
+
+func (guid GUID) String() string {
+	switch guid {
+	case CODEC_H264_GUID:
+		return "h264"
+	case CODEC_HEVC_GUID:
+		return "hevc"
+
+	case H264_PROFILE_BASELINE_GUID:
+		return "baseline"
+	case H264_PROFILE_MAIN_GUID, HEVC_PROFILE_MAIN_GUID:
+		return "main"
+	case H264_PROFILE_HIGH_GUID:
+		return "high"
+	case H264_PROFILE_HIGH_444_GUID:
+		return "high444"
+	case H264_PROFILE_STEREO_GUID:
+		return "stereo"
+	case H264_PROFILE_SVC_TEMPORAL_SCALABILTY:
+		return "svc_temporal_scalability"
+	case H264_PROFILE_PROGRESSIVE_HIGH_GUID:
+		return "progressive_high"
+	case H264_PROFILE_CONSTRAINED_HIGH_GUID:
+		return "constrained_high"
+
+	case PRESET_DEFAULT_GUID:
+		return "default"
+	case PRESET_HP_GUID:
+		return "hp"
+	case PRESET_HQ_GUID:
+		return "hq"
+	case PRESET_BD_GUID:
+		return "bd"
+	case PRESET_LOW_LATENCY_DEFAULT_GUID:
+		return "low_latency_default"
+	case PRESET_LOW_LATENCY_HP_GUID:
+		return "low_latency_hp"
+	case PRESET_LOW_LATENCY_HQ_GUID:
+		return "low_latency_hq"
+	case PRESET_LOSSLESS_DEFAULT_GUID:
+		return "lossless_default"
+	case PRESET_LOSSLESS_HP_GUID:
+		return "lossless_hp"
+	}
+
+	return "unknown"
+}
+
+func containsGUID(slice []GUID, g GUID) bool {
+	for _, r := range slice {
+		if r == g {
+			return true
+		}
+	}
+
+	return false
+}
