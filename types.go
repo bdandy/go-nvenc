@@ -98,7 +98,7 @@ func newOpenEncodeSessionParams(devType int, device unsafe.Pointer) *OPEN_ENCODE
 	return params
 }
 
-type BUFFER_FORMAT C.NV_ENC_BUFFER_FORMAT
+type BUFFER_FORMAT = C.NV_ENC_BUFFER_FORMAT
 
 func (format BUFFER_FORMAT) String() string {
 	switch format {
@@ -247,7 +247,7 @@ func (e *ENCODER_CONFIG) UseMonoChrome(b bool) {
 	}
 }
 
-func (e *ENCODER_CONFIG) SetProfile(guid GUID) {
+func (e *ENCODER_CONFIG) SetProfile(guid profileGUID) {
 	e.profileGUID = C.GUID(guid)
 }
 
@@ -500,8 +500,18 @@ void*                   reserved2[64];               /**< [in]: Reserved and mus
 */
 type LOCK_BITSTREAM_PARAMS = C.NV_ENC_LOCK_BITSTREAM
 
-func (b *LOCK_BITSTREAM_PARAMS) GetData() []byte {
-	return C.GoBytes(b.bitstreamBufferPtr, C.int(b.bitstreamSizeInBytes))
+func (b *LOCK_BITSTREAM_PARAMS) BitstreamSize() int {
+	return int(b.bitstreamSizeInBytes)
+}
+
+func (b *LOCK_BITSTREAM_PARAMS) CopyBitstream(buf []byte) error {
+	if len(buf) < b.BitstreamSize() {
+		return fmt.Errorf("bufSize is %d bytes, but bitstream need %d bytes for output", len(buf), b.BitstreamSize())
+	}
+
+	C.memcpy((unsafe.Pointer)(&buf[0]), b.bitstreamBufferPtr, C.size_t(b.BitstreamSize()))
+
+	return nil
 }
 
 func (b *LOCK_BITSTREAM_PARAMS) FrameId() uint32 {

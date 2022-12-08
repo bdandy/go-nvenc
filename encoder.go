@@ -39,43 +39,9 @@ func (e *Encoder) ForceIntraRefresh(frames uint32) {
 	e.pictureParams.PicParamsH264().ForceIntraRefresh(frames)
 }
 
-func (e *Encoder) getGUIDs() ([]GUID, error) {
-	count, err := e.functions.getGUIDCount(e.instance)
-	if err != nil {
-		return nil, fmt.Errorf("getGUIDCount error: %w", err)
-	}
-	return e.functions.getGUIDs(e.instance, count)
-}
-
-func (e *Encoder) UseH264() error {
-	guids, err := e.getGUIDs()
-	if err != nil {
-		return err
-	}
-	if !containsGUID(guids, CODEC_H264_GUID) {
-		return fmt.Errorf("NvEncoder doesn't support H264 profile")
-	}
-	e.encodeGUID = CODEC_H264_GUID
-
-	return nil
-}
-
-func (e *Encoder) UseHEVC() error {
-	guids, err := e.getGUIDs()
-	if err != nil {
-		return err
-	}
-	if !containsGUID(guids, CODEC_HEVC_GUID) {
-		return fmt.Errorf("NvEncoder doesn't support HEVC profile")
-	}
-	e.encodeGUID = CODEC_HEVC_GUID
-
-	return nil
-}
-
-func (e *Encoder) SetPreset(guid GUID) error {
-	e.presetGUID = guid
-	conf, err := e.functions.getPresetConfig(e.instance, e.encodeGUID, guid)
+func (e *Encoder) SetPreset(guid presetGUID) error {
+	e.presetGUID = GUID(guid)
+	conf, err := e.functions.getPresetConfig(e.instance, e.encodeGUID, GUID(guid))
 	if err != nil {
 		return err
 	}
@@ -149,32 +115,69 @@ func (e *Encoder) Reset() error {
 	return e.functions.reconfigureEncoder(e.instance, &params)
 }
 
+// Encode is main function for encoding raw image into video bitstream.
+// It allocates output buffer for each frame, which will be garbage collected
 func (e *Encoder) Encode(data []byte) ([]byte, error) {
+	var buf *[]byte
+
+	err := e.EncodeTo(data, buf)
+
+	return *buf, err
+}
+
+// EncodeTo encodes picture into pre-allocated buffer. If buf is nil - new buffer will be allocated
+func (e *Encoder) EncodeTo(data []byte, buf *[]byte) error {
+	if err := e.encode(data); err != nil {
+		return fmt.Errorf("encode: %w", err)
+	}
+
+	if err := e.copyOutput(buf); err != nil {
+		return fmt.Errorf("copy output: %w", err)
+	}
+	return nil
+}
+
+func (e *Encoder) encode(data []byte) error {
 	if err := e.functions.lockInputBuffer(e.instance, e.inputBufferLock); err != nil {
-		return nil, fmt.Errorf("lockInputBuffer: %w", err)
+		return fmt.Errorf("lockInputBuffer: %w", err)
 	}
 	e.inputBufferLock.CopyBuffer(data)
 
 	if err := e.functions.unlockInputBuffer(e.instance, e.inputBuffer.GetBufferPtr()); err != nil {
-		return nil, fmt.Errorf("unlockInputBuffer: %w", err)
+		return fmt.Errorf("unlockInputBuffer: %w", err)
 	}
 
 	if err := e.functions.encodePicture(e.instance, e.pictureParams); err != nil {
-		return nil, fmt.Errorf("encodePicture: %w", err)
+		return fmt.Errorf("encodePicture: %w", err)
 	}
 
-	if err := e.functions.lockBitstream(e.instance, e.outputBufferLock); err != nil {
-		return nil, fmt.Errorf("lockBitstream: %w", err)
-	}
-
-	result := e.outputBufferLock.GetData()
-	if err := e.functions.unlockBitstream(e.instance, e.outputBuffer.GetBufferPtr()); err != nil {
-		return nil, fmt.Errorf("unlockBitstream: %w", err)
-	}
-
-	return result, nil
+	return nil
 }
 
+func (e *Encoder) copyOutput(buf *[]byte) error {
+	if err := e.functions.lockBitstream(e.instance, e.outputBufferLock); err != nil {
+		return fmt.Errorf("lockBitstream: %w", err)
+	}
+
+	size := e.outputBufferLock.BitstreamSize()
+
+	if buf == nil {
+		b := make([]byte, size)
+		buf = &b
+	}
+
+	if err := e.outputBufferLock.CopyBitstream(*buf); err != nil {
+		return fmt.Errorf("copy bistream: %w", err)
+	}
+
+	if err := e.functions.unlockBitstream(e.instance, e.outputBuffer.GetBufferPtr()); err != nil {
+		return fmt.Errorf("unlockBitstream: %w", err)
+	}
+
+	return nil
+}
+
+// InvalidateRefFrames invalidates reference for timestamp
 func (e *Encoder) InvalidateRefFrames(timestamp uint64) error {
 	return e.functions.invalidateRefFrames(e.instance, timestamp)
 }
@@ -183,19 +186,32 @@ func (e *Encoder) Picture() *ENC_PIC_PARAMS {
 	return e.pictureParams
 }
 
-func (e *Encoder) GetSPSPPS() ([]byte, error) {
+// GetSequence returns SPS\PPS header
+func (e *Encoder) GetSequence() ([]byte, error) {
 	err := e.functions.getSequenceParams(e.instance, e.spsPayload)
 	if err != nil {
-		return nil, fmt.Errorf("GetSPSPPS: %w", err)
+		return nil, fmt.Errorf("get sequence params: %w", err)
 	}
 
 	return e.spsPayload.Bytes(), nil
 }
 
+// Destroy clean ups encoder
 func (e *Encoder) Destroy() error {
 	err := e.functions.destroyBitstreamBuffer(e.instance, e.outputBuffer.GetBufferPtr())
+	if err != nil {
+		return fmt.Errorf("destroy bitsteam buffer: %w", err)
+	}
+
 	err = e.functions.destroyBuffer(e.instance, e.inputBuffer.GetBufferPtr())
+	if err != nil {
+		return fmt.Errorf("destroy buffer: %w", err)
+	}
+
 	err = e.functions.destroyEncoder(e.instance)
+	if err != nil {
+		return fmt.Errorf("destroy encoder: %w", err)
+	}
 
 	e.instance = nil
 	e.functions = nil
@@ -204,15 +220,35 @@ func (e *Encoder) Destroy() error {
 	e.pictureParams = nil
 	e.inputBuffer = nil
 	e.outputBuffer = nil
-	return err
+
+	return nil
 }
 
-func NewEncoder(bufSize uint32) (*Encoder, error) {
+// NewEncoder returns initialized encoder instance for chosen Codec (h264,hevc) with output buffer allocated to bufSize
+func NewEncoder(codec codecGUID, bufSize uint32) (*Encoder, error) {
+	enc, err := newEncoder(bufSize)
+	if err != nil {
+		return nil, fmt.Errorf("new encoder: %w", err)
+	}
+
+	guids, err := enc.getGUIDs()
+	if err != nil {
+		return nil, fmt.Errorf("get GUIDs: %w", err)
+	}
+
+	if !hasGUID(guids, codec) {
+		return nil, fmt.Errorf("NvEncoder doesn't support %s codec", codec)
+	}
+
+	return enc, nil
+}
+
+func newEncoder(bufSize uint32) (*Encoder, error) {
 	functions := newEncoderFunctions()
 
 	err := callCreateInstance(functions)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("callCreateInstance: %w", err)
 	}
 
 	enc := &Encoder{

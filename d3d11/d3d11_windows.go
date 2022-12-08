@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// #cgo LDFLAGS: -lD3D11 -ldxgi
+// #cgo LDFLAGS: -ld3d11 -ldxgi
 // #include "get_adapter.h"
 import "C"
 
