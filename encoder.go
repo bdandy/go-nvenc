@@ -40,6 +40,22 @@ func (e *Encoder) ForceIntraRefresh(frames uint32) {
 	e.pictureParams.PicParamsH264().ForceIntraRefresh(frames)
 }
 
+// SetCodec sets encoding codec
+func (e *Encoder) SetCodec(codec codecGUID) error {
+	guids, err := e.getGUIDs()
+	if err != nil {
+		return fmt.Errorf("get GUIDs: %w", err)
+	}
+
+	if !hasGUID(guids, codec) {
+		return fmt.Errorf("NvEncoder doesn't support %s codec", codec)
+	}
+
+	e.encodeGUID = codec
+
+	return nil
+}
+
 // SetPreset sets pre-defined settings from encoder
 func (e *Encoder) SetPreset(guid presetGUID) error {
 	e.presetGUID = guid
@@ -223,19 +239,10 @@ func (e *Encoder) Destroy() error {
 }
 
 // NewEncoder returns initialized encoder instance for chosen Codec (h264,hevc) with output buffer allocated to bufSize
-func NewEncoder(codec codecGUID, bufSize uint32) (*Encoder, error) {
+func NewEncoder(bufSize uint32) (*Encoder, error) {
 	enc, err := newEncoder(bufSize)
 	if err != nil {
 		return nil, fmt.Errorf("new encoder: %w", err)
-	}
-
-	guids, err := enc.getGUIDs()
-	if err != nil {
-		return nil, fmt.Errorf("get GUIDs: %w", err)
-	}
-
-	if !hasGUID(guids, codec) {
-		return nil, fmt.Errorf("NvEncoder doesn't support %s codec", codec)
 	}
 
 	return enc, nil

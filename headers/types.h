@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "headers/nvEncodeAPI.h"
 
  static inline NV_ENC_CONFIG_H264* GetH264Config(NV_ENC_CODEC_CONFIG* c) {
