@@ -1,5 +1,6 @@
 package nvenc
 
+import "C"
 import (
 	"fmt"
 	"unsafe"
@@ -8,26 +9,26 @@ import (
 type Encoder struct {
 	instance unsafe.Pointer
 
-	encodeGUID GUID
-	presetGUID GUID
+	encodeGUID codecGUID
+	presetGUID presetGUID
 
-	initializeParams *INITIALIZE_PARAMS
-	encoderConfig    *ENCODER_CONFIG
-	pictureParams    *ENC_PIC_PARAMS
-	inputBuffer      *INPUT_BUFFER
-	inputBufferLock  *LOCK_INPUT_BUFFER_PARAMS
-	outputBuffer     *BITSTREAM_BUFFER
-	outputBufferLock *LOCK_BITSTREAM_PARAMS
+	initializeParams *InitializeParams
+	encoderConfig    *EncoderConfig
+	pictureParams    *EncoderPictureParams
+	inputBuffer      *CreateInputBuffer
+	inputBufferLock  *LockInputBufferParams
+	outputBuffer     *BitstreamBuffer
+	outputBufferLock *LockBitstreamParams
 	spsPayload       *SEQUENCE_PARAM_PAYLOAD
 
 	functions *EncoderFunctions
 }
 
-func (e *Encoder) InitializeParams() *INITIALIZE_PARAMS {
+func (e *Encoder) InitializeParams() *InitializeParams {
 	return e.initializeParams
 }
 
-func (e *Encoder) Config() *ENCODER_CONFIG {
+func (e *Encoder) Config() *EncoderConfig {
 	return e.encoderConfig
 }
 
@@ -39,34 +40,29 @@ func (e *Encoder) ForceIntraRefresh(frames uint32) {
 	e.pictureParams.PicParamsH264().ForceIntraRefresh(frames)
 }
 
+// SetPreset sets pre-defined settings from encoder
 func (e *Encoder) SetPreset(guid presetGUID) error {
-	e.presetGUID = GUID(guid)
-	conf, err := e.functions.getPresetConfig(e.instance, e.encodeGUID, GUID(guid))
+	e.presetGUID = guid
+
+	conf, err := e.functions.getPresetConfig(e.instance, e.encodeGUID, guid)
 	if err != nil {
 		return err
 	}
-	e.encoderConfig = conf
+
 	// bugfix missing RC struct version
-	e.encoderConfig.RC().setVersion()
+	conf.RC().setVersion()
+
+	e.encoderConfig = conf
 
 	return nil
 }
 
-func (e *Encoder) GetInputFormats() ([]BUFFER_FORMAT, error) {
-	count, err := e.functions.getInputFormatCount(e.instance, e.encodeGUID)
-	if err != nil {
-		return nil, fmt.Errorf("getInputFormatCount error: %w", err)
-	}
-
-	return e.functions.getInputFormats(e.instance, e.encodeGUID, count)
+func (e *Encoder) GetInputFormats() ([]bufferFormat, error) {
+	return e.functions.getInputFormats(e.instance, e.encodeGUID)
 }
 
-func (e *Encoder) GetPresets() ([]GUID, error) {
-	count, err := e.functions.getPresetCount(e.instance, e.encodeGUID)
-	if err != nil {
-		return nil, err
-	}
-	return e.functions.getPresetGUIDs(e.instance, e.encodeGUID, count)
+func (e *Encoder) GetPresets() ([]presetGUID, error) {
+	return e.functions.getPresetGUIDs(e.instance, e.encodeGUID)
 }
 
 func (e *Encoder) SetResolution(width, height uint32) {
@@ -79,7 +75,7 @@ func (e *Encoder) SetFrameRate(num, den uint32) {
 	e.initializeParams.SetFrameRate(num, den)
 }
 
-func (e *Encoder) InitializeEncoder(inputFormat, outputFormat BUFFER_FORMAT) (err error) {
+func (e *Encoder) InitializeEncoder(inputFormat, outputFormat bufferFormat) (err error) {
 	e.initializeParams.SetEncodeGUID(e.encodeGUID)
 	e.initializeParams.SetPresetGUID(e.presetGUID)
 	e.initializeParams.SetEncodeConfig(e.encoderConfig)
@@ -141,7 +137,9 @@ func (e *Encoder) encode(data []byte) error {
 	if err := e.functions.lockInputBuffer(e.instance, e.inputBufferLock); err != nil {
 		return fmt.Errorf("lockInputBuffer: %w", err)
 	}
-	e.inputBufferLock.CopyBuffer(data)
+	if err := e.inputBufferLock.CopyBuffer(data); err != nil {
+		return fmt.Errorf("copy buffer: %w", err)
+	}
 
 	if err := e.functions.unlockInputBuffer(e.instance, e.inputBuffer.GetBufferPtr()); err != nil {
 		return fmt.Errorf("unlockInputBuffer: %w", err)
@@ -182,7 +180,7 @@ func (e *Encoder) InvalidateRefFrames(timestamp uint64) error {
 	return e.functions.invalidateRefFrames(e.instance, timestamp)
 }
 
-func (e *Encoder) Picture() *ENC_PIC_PARAMS {
+func (e *Encoder) Picture() *EncoderPictureParams {
 	return e.pictureParams
 }
 
@@ -253,7 +251,7 @@ func newEncoder(bufSize uint32) (*Encoder, error) {
 
 	enc := &Encoder{
 		functions:        functions,
-		inputBuffer:      newInputBufferParams(),
+		inputBuffer:      newCreateInputBuffer(),
 		outputBuffer:     newBitstreamBuffer(bufSize),
 		initializeParams: newInitializeParams(),
 		encoderConfig:    newEncoderConfig(),

@@ -37,7 +37,7 @@ func (e *Encoder) OpenDX11EncodeSession() error {
 		return err
 	}
 
-	params := newOpenEncodeSessionParams(DEVICE_TYPE_DIRECTX, unsafe.Pointer(device))
+	params := newOpenEncodeSessionParams(DeviceTypeDirectx, unsafe.Pointer(device))
 	e.instance, err = e.functions.openEncodeSessionEx(params)
 	if err != nil {
 		return err
