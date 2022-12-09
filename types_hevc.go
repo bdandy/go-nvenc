@@ -1,7 +1,7 @@
 package nvenc
 
 /*
- #include "headers/nvEncodeAPI.h"
+ #include "include/nvEncodeAPI.h"
 
  static inline void HEVCSetRepeatSPSPPS(NV_ENC_CONFIG_HEVC* c) {
  	c->repeatSPSPPS = 1;

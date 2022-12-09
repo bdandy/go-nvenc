@@ -1,6 +1,6 @@
 package nvenc
 
-// #include "headers/guid.h"
+// #include "include/guid.h"
 import "C"
 import "fmt"
 

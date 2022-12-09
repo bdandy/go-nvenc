@@ -1,6 +1,6 @@
 package nvenc
 
-// #include "headers/functions.h"
+// #include "include/functions.h"
 import "C"
 import (
 	"fmt"

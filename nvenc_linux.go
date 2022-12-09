@@ -7,7 +7,7 @@ import (
 	"github.com/rainycape/dl"
 )
 
-// #include "headers/nvEncodeAPI.h"
+// #include "include/nvEncodeAPI.h"
 /*
 	typedef NVENCSTATUS (NVENCAPI* PNVENCODEAPICREATEINSTANCE) (NV_ENCODE_API_FUNCTION_LIST *functionList);
 

@@ -1,4 +1,4 @@
-#include "headers/nvEncodeAPI.h"
+#include "include/nvEncodeAPI.h"
 
  static inline int callOpenEncodeSession(PNVENCOPENENCODESESSION f,void* device, uint32_t deviceType, void** encoder) {
  	return f(device, deviceType, encoder);
