@@ -1,7 +1,14 @@
-package nvenc
+package types
 
-// #include "include/types.h"
+// #cgo CFLAGS: -I ../../include
+// #include "types.h"
 import "C"
+
+import (
+	"unsafe"
+
+	"github.com/bdandy/go-nvenc/v8/guid"
+)
 
 // EncoderConfig is a config type from C library
 /*
@@ -19,11 +26,11 @@ void*                           reserved2[64];                               /**
 */
 type EncoderConfig C.NV_ENC_CONFIG
 
-func (e *EncoderConfig) cType() *C.NV_ENC_CONFIG {
-	return (*C.NV_ENC_CONFIG)(e)
+func (e EncoderConfig) CType() C.NV_ENC_CONFIG {
+	return C.NV_ENC_CONFIG(e)
 }
 
-func (e *EncoderConfig) RC() *RcParams {
+func (e EncoderConfig) RC() *RcParams {
 	return (*RcParams)(&e.rcParams)
 }
 
@@ -46,8 +53,9 @@ func (e *EncoderConfig) UseMonoChrome(b bool) {
 	}
 }
 
-func (e *EncoderConfig) SetProfile(guid profileGUID) {
-	e.profileGUID = C.GUID(guid)
+func (e *EncoderConfig) SetProfile(guid guid.ProfileGUID) {
+	t := guid.CType()
+	e.profileGUID = *(*C.GUID)(unsafe.Pointer(&t))
 }
 
 func (e *EncoderConfig) SetFrameFieldMode(mode FRAME_FIELD_MODE) {
@@ -58,22 +66,23 @@ func (e *EncoderConfig) SetMVPrecision(mv MV_PRECISION) {
 	e.mvPrecision = C.NV_ENC_MV_PRECISION(mv)
 }
 
-func (e *EncoderConfig) getCodecConfig() *CODEC_CONFIG {
+func (e EncoderConfig) getCodecConfig() *CODEC_CONFIG {
 	return (*CODEC_CONFIG)(&e.encodeCodecConfig)
 }
 
-func (e *EncoderConfig) GetH264Config() *CONFIG_H264 {
-	return e.getCodecConfig().GetH264Config()
+func (e EncoderConfig) GetH264Config() *CONFIG_H264 {
+	config := e.getCodecConfig()
+	return config.H264Config()
 }
 
 func (e *EncoderConfig) GetHEVCConfig() *CONFIG_HEVC {
-	return e.getCodecConfig().GetHEVCConfig()
+	return e.getCodecConfig().HEVCConfig()
 }
 
-func newEncoderConfig() *EncoderConfig {
+func NewEncoderConfig() *EncoderConfig {
 	config := new(EncoderConfig)
 	config.version = C.NV_ENC_CONFIG_VER
-	config.rcParams = C.NV_ENC_RC_PARAMS(newRCParams())
+	config.rcParams = C.NV_ENC_RC_PARAMS(NewRCParams())
 
 	return config
 }

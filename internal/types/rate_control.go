@@ -1,6 +1,7 @@
-package nvenc
+package types
 
-// #include "include/types.h"
+// #cgo CFLAGS: -I ../../include
+// #include "types.h"
 import "C"
 
 // RcParams is rate control settings
@@ -31,7 +32,7 @@ func (p *RcParams) cType() *C.NV_ENC_RC_PARAMS {
 	return (*C.NV_ENC_RC_PARAMS)(p)
 }
 
-func (p *RcParams) setVersion() {
+func (p *RcParams) SetVersion() {
 	p.version = C.NV_ENC_RC_PARAMS_VER
 }
 
@@ -98,7 +99,7 @@ func (p *RcParams) SetMaxBitRate(rate uint32) {
 	p.maxBitRate = C.uint32_t(rate)
 }
 
-func newRCParams() (param RcParams) {
-	param.setVersion()
+func NewRCParams() (param RcParams) {
+	param.SetVersion()
 	return param
 }

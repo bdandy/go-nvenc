@@ -1,11 +1,17 @@
 package nvenc
 
-// #include "include/functions.h"
+// #cgo CFLAGS: -I ./include
+// #include <functions.h>
 import "C"
 import (
 	"fmt"
 	"unsafe"
+
+	"github.com/bdandy/go-nvenc/v8/guid"
+	"github.com/bdandy/go-nvenc/v8/internal/types"
 )
+
+type GUID = guid.GUID
 
 // EncoderFunctions is a bridge to C method calls
 // Contains pointers to
@@ -70,7 +76,7 @@ func (e *EncoderFunctions) getGUIDCount(encoder unsafe.Pointer) (uint32, error) 
 
 func (e *EncoderFunctions) getProfileGUIDCount(encoder unsafe.Pointer, encodeGUID GUID) (uint32, error) {
 	var count C.uint32_t
-	err := codeToError(C.callGetProfileGUIDCount(e.getProfileGUIDCountPtr, encoder, C.GUID(encodeGUID), &count))
+	err := codeToError(C.callGetProfileGUIDCount(e.getProfileGUIDCountPtr, encoder, *(*C.GUID)(unsafe.Pointer(&encodeGUID)), &count))
 	return uint32(count), err
 }
 
@@ -78,7 +84,7 @@ func (e *EncoderFunctions) getProfileGUIDs(encoder unsafe.Pointer, encodeGUID GU
 	var count C.uint32_t
 	var guids = make([]GUID, guidArraySize)
 
-	err := codeToError(C.callGetProfileGUIDs(e.getProfileGUIDsPtr, encoder, C.GUID(encodeGUID), (*C.GUID)(unsafe.Pointer(&guids[0])), C.uint32_t(guidArraySize), &count))
+	err := codeToError(C.callGetProfileGUIDs(e.getProfileGUIDsPtr, encoder, *(*C.GUID)(unsafe.Pointer(&encodeGUID)), (*C.GUID)(unsafe.Pointer(&guids[0])), C.uint32_t(guidArraySize), &count))
 
 	return guids, err
 }
@@ -95,16 +101,16 @@ func (e *EncoderFunctions) getGUIDs(encoder unsafe.Pointer, guidArraySize uint32
 	return guids, err
 }
 
-func (e *EncoderFunctions) getInputFormats(encoder unsafe.Pointer, encodeGUID codecGUID) ([]bufferFormat, error) {
+func (e *EncoderFunctions) getInputFormats(encoder unsafe.Pointer, encodeGUID guid.CodecGUID) ([]types.BufferFormat, error) {
 	var count C.uint32_t
 
-	err := codeToError(C.callGetInputFormatCount(e.getInputFormatCountPtr, encoder, C.GUID(encodeGUID), &count))
+	err := codeToError(C.callGetInputFormatCount(e.getInputFormatCountPtr, encoder, *(*C.GUID)(unsafe.Pointer(&encodeGUID)), &count))
 	if err != nil {
 		return nil, fmt.Errorf("get input format count: %w", err)
 	}
 
-	data := make([]C.NV_ENC_BUFFER_FORMAT, count)
-	err = codeToError(C.callGetInputFormats(e.getInputFormatsPtr, encoder, C.GUID(encodeGUID), (*C.NV_ENC_BUFFER_FORMAT)(unsafe.Pointer(&data[0])), C.uint32_t(count), &count))
+	data := make([]types.BufferFormat, count)
+	err = codeToError(C.callGetInputFormats(e.getInputFormatsPtr, encoder, *(*C.GUID)(unsafe.Pointer(&encodeGUID)), (*C.NV_ENC_BUFFER_FORMAT)(unsafe.Pointer(&data[0])), C.uint32_t(count), &count))
 	if err != nil {
 		return nil, fmt.Errorf("get input formats: %w", err)
 	}
@@ -112,60 +118,57 @@ func (e *EncoderFunctions) getInputFormats(encoder unsafe.Pointer, encodeGUID co
 	return data, err
 }
 
-func (e *EncoderFunctions) getCaps(encoder unsafe.Pointer, encodeGUID GUID, capsParam *CapsParam) (int, error) {
+func (e *EncoderFunctions) getCaps(encoder unsafe.Pointer, encodeGUID GUID, capsParam *types.CapsParam) (int, error) {
 	var capsVal C.int
 
-	err := codeToError(C.callGetCaps(e.getCapsPtr, encoder, C.GUID(encodeGUID), (*C.NV_ENC_CAPS_PARAM)(capsParam), &capsVal))
+	err := codeToError(C.callGetCaps(e.getCapsPtr, encoder, *(*C.GUID)(unsafe.Pointer(&encodeGUID)), (*C.NV_ENC_CAPS_PARAM)(unsafe.Pointer(capsParam)), &capsVal))
 
 	return int(capsVal), err
 }
 
-func (e *EncoderFunctions) getPresetGUIDs(encoder unsafe.Pointer, codecGUID codecGUID) ([]presetGUID, error) {
+func (e *EncoderFunctions) getPresetGUIDs(encoder unsafe.Pointer, codecGUID guid.CodecGUID) ([]guid.PresetGUID, error) {
 	var count C.uint32_t
-	err := codeToError(C.callGetPresetCount(e.getPresetCountPtr, encoder, C.GUID(codecGUID), &count))
+	err := codeToError(C.callGetPresetCount(e.getPresetCountPtr, encoder, *(*C.GUID)(unsafe.Pointer(&codecGUID)), &count))
 	if err != nil {
 		return nil, fmt.Errorf("get preset count: %w", err)
 	}
 
-	data := make([]GUID, count)
-	err = codeToError(C.callGetPresetGUIDs(e.getPresetGUIDsPtr, encoder, C.GUID(codecGUID), (*C.GUID)(unsafe.Pointer(&data[0])), C.uint32_t(count), &count))
+	data := make(guid.GUIDs, count)
+	err = codeToError(C.callGetPresetGUIDs(e.getPresetGUIDsPtr, encoder, *(*C.GUID)(unsafe.Pointer(&codecGUID)), (*C.GUID)(unsafe.Pointer(&data[0])), C.uint32_t(count), &count))
 	if err != nil {
 		return nil, fmt.Errorf("get preset GUIDs: %w", err)
 	}
 
-	result := make([]presetGUID, count)
-	for i := range data {
-		result[i] = presetGUID(data[i])
-	}
-
-	return result, err
+	return data.ToPreset(), err
 }
 
-func (e *EncoderFunctions) getPresetConfig(encoder unsafe.Pointer, encodeGUID codecGUID, presetGUID presetGUID) (*EncoderConfig, error) {
+func (e *EncoderFunctions) getPresetConfig(encoder unsafe.Pointer, encodeGUID guid.CodecGUID, presetGUID guid.PresetGUID) (*types.EncoderConfig, error) {
 	var config C.NV_ENC_PRESET_CONFIG
 	config.version = C.NV_ENC_PRESET_CONFIG_VER
 	config.presetCfg.version = C.NV_ENC_CONFIG_VER
 
-	err := codeToError(C.callGetPresetConfig(e.getPresetConfigPtr, encoder, C.GUID(encodeGUID), C.GUID(presetGUID), &config))
-	return (*EncoderConfig)(&config.presetCfg), err
+	err := codeToError(C.callGetPresetConfig(e.getPresetConfigPtr, encoder, *(*C.GUID)(unsafe.Pointer(&encodeGUID)), *(*C.GUID)(unsafe.Pointer(&presetGUID)), &config))
+
+	return (*types.EncoderConfig)(unsafe.Pointer(&config.presetCfg)), err
 }
 
-func (e *EncoderFunctions) initializeEncoder(encoder unsafe.Pointer, createEncodeParams *InitializeParams) error {
-	err := codeToError(C.callInitializeEncoder(e.initializeEncoderPtr, encoder, (*C.NV_ENC_INITIALIZE_PARAMS)(createEncodeParams)))
+func (e *EncoderFunctions) initializeEncoder(encoder unsafe.Pointer, createEncodeParams *types.InitializeParams) error {
+	err := codeToError(C.callInitializeEncoder(e.initializeEncoderPtr, encoder, (*C.NV_ENC_INITIALIZE_PARAMS)(unsafe.Pointer(createEncodeParams))))
 	return err
 }
 
-func (e *EncoderFunctions) createBuffer(encoder unsafe.Pointer, params *CreateInputBuffer) error {
-	err := codeToError(C.callCreateBuffer(e.createBufferPtr, encoder, (*C.NV_ENC_CREATE_INPUT_BUFFER)(params)))
+func (e *EncoderFunctions) createBuffer(encoder unsafe.Pointer, params *types.CreateInputBuffer) error {
+	err := codeToError(C.callCreateBuffer(e.createBufferPtr, encoder, (*C.NV_ENC_CREATE_INPUT_BUFFER)(unsafe.Pointer(params))))
 	return err
 }
+
 func (e *EncoderFunctions) destroyBuffer(encoder unsafe.Pointer, buffer unsafe.Pointer) error {
 	err := codeToError(C.callDestroyBuffer(e.destroyBufferPtr, encoder, (C.NV_ENC_INPUT_PTR)(buffer)))
 	return err
 }
 
-func (e *EncoderFunctions) createBitstreamBuffer(encoder unsafe.Pointer, params *BitstreamBuffer) error {
-	err := codeToError(C.callCreateBitstreamBuffer(e.createBitstreamBufferPtr, encoder, (*C.NV_ENC_CREATE_BITSTREAM_BUFFER)(params)))
+func (e *EncoderFunctions) createBitstreamBuffer(encoder unsafe.Pointer, params *types.BitstreamBuffer) error {
+	err := codeToError(C.callCreateBitstreamBuffer(e.createBitstreamBufferPtr, encoder, (*C.NV_ENC_CREATE_BITSTREAM_BUFFER)(unsafe.Pointer(params))))
 	return err
 }
 
@@ -174,13 +177,13 @@ func (e *EncoderFunctions) destroyBitstreamBuffer(encoder unsafe.Pointer, buffer
 	return err
 }
 
-func (e *EncoderFunctions) encodePicture(encoder unsafe.Pointer, encodePicParams *EncoderPictureParams) error {
-	err := codeToError(C.callEncodePicture(e.encodePicturePtr, encoder, (*C.NV_ENC_PIC_PARAMS)(encodePicParams)))
+func (e *EncoderFunctions) encodePicture(encoder unsafe.Pointer, encodePicParams *types.EncoderPictureParams) error {
+	err := codeToError(C.callEncodePicture(e.encodePicturePtr, encoder, (*C.NV_ENC_PIC_PARAMS)(unsafe.Pointer(encodePicParams))))
 	return err
 }
 
-func (e *EncoderFunctions) lockBitstream(encoder unsafe.Pointer, params *LockBitstreamParams) error {
-	err := codeToError(C.callLockBitstream(e.lockBitstreamPtr, encoder, (*C.NV_ENC_LOCK_BITSTREAM)(params)))
+func (e *EncoderFunctions) lockBitstream(encoder unsafe.Pointer, params *types.LockBitstreamParams) error {
+	err := codeToError(C.callLockBitstream(e.lockBitstreamPtr, encoder, (*C.NV_ENC_LOCK_BITSTREAM)(unsafe.Pointer(params))))
 	return err
 }
 
@@ -189,8 +192,8 @@ func (e *EncoderFunctions) unlockBitstream(encoder unsafe.Pointer, buffer unsafe
 	return err
 }
 
-func (e *EncoderFunctions) lockInputBuffer(encoder unsafe.Pointer, params *LockInputBufferParams) error {
-	err := codeToError(C.callLockInputBuffer(e.lockInputBufferPtr, encoder, (*C.NV_ENC_LOCK_INPUT_BUFFER)(params)))
+func (e *EncoderFunctions) lockInputBuffer(encoder unsafe.Pointer, params *types.LockInputBufferParams) error {
+	err := codeToError(C.callLockInputBuffer(e.lockInputBufferPtr, encoder, (*C.NV_ENC_LOCK_INPUT_BUFFER)(unsafe.Pointer(params))))
 	return err
 }
 
@@ -199,28 +202,28 @@ func (e *EncoderFunctions) unlockInputBuffer(encoder unsafe.Pointer, buffer unsa
 	return err
 }
 
-func (e *EncoderFunctions) encodeStats(encoder unsafe.Pointer, encodeStats *ENC_STAT) error {
-	err := codeToError(C.callEncodeStats(e.encodeStatsPtr, encoder, (*C.NV_ENC_STAT)(encodeStats)))
+func (e *EncoderFunctions) encodeStats(encoder unsafe.Pointer, encodeStats *types.ENC_STAT) error {
+	err := codeToError(C.callEncodeStats(e.encodeStatsPtr, encoder, (*C.NV_ENC_STAT)(unsafe.Pointer(encodeStats))))
 	return err
 }
 
-func (e *EncoderFunctions) getSequenceParams(encoder unsafe.Pointer, payload *SEQUENCE_PARAM_PAYLOAD) error {
-	err := codeToError(C.callGetSequenceParams(e.getSequenceParamsPtr, encoder, (*C.NV_ENC_SEQUENCE_PARAM_PAYLOAD)(payload)))
+func (e *EncoderFunctions) getSequenceParams(encoder unsafe.Pointer, payload *types.SEQUENCE_PARAM_PAYLOAD) error {
+	err := codeToError(C.callGetSequenceParams(e.getSequenceParamsPtr, encoder, (*C.NV_ENC_SEQUENCE_PARAM_PAYLOAD)(unsafe.Pointer(payload))))
 	return err
 }
 
-func (e *EncoderFunctions) registerAsyncEvent(encoder unsafe.Pointer, eventParams *EVENT_PARAMS) error {
-	err := codeToError(C.callRegisterAsyncEvent(e.registerAsyncEventPtr, encoder, (*C.NV_ENC_EVENT_PARAMS)(eventParams)))
+func (e *EncoderFunctions) registerAsyncEvent(encoder unsafe.Pointer, eventParams *types.EVENT_PARAMS) error {
+	err := codeToError(C.callRegisterAsyncEvent(e.registerAsyncEventPtr, encoder, (*C.NV_ENC_EVENT_PARAMS)(unsafe.Pointer(eventParams))))
 	return err
 }
 
-func (e *EncoderFunctions) unregisterAsyncEvent(encoder unsafe.Pointer, eventParams *EVENT_PARAMS) error {
-	err := codeToError(C.callUnregisterAsyncEvent(e.unregisterAsyncEventPtr, encoder, (*C.NV_ENC_EVENT_PARAMS)(eventParams)))
+func (e *EncoderFunctions) unregisterAsyncEvent(encoder unsafe.Pointer, eventParams *types.EVENT_PARAMS) error {
+	err := codeToError(C.callUnregisterAsyncEvent(e.unregisterAsyncEventPtr, encoder, (*C.NV_ENC_EVENT_PARAMS)(unsafe.Pointer(eventParams))))
 	return err
 }
 
-func (e *EncoderFunctions) mapInputResource(encoder unsafe.Pointer, params *MAP_INPUT_RESOURCE_PARAMS) error {
-	err := codeToError(C.callMapInputResource(e.mapInputResourcePtr, encoder, (*C.NV_ENC_MAP_INPUT_RESOURCE)(params)))
+func (e *EncoderFunctions) mapInputResource(encoder unsafe.Pointer, params *types.MAP_INPUT_RESOURCE_PARAMS) error {
+	err := codeToError(C.callMapInputResource(e.mapInputResourcePtr, encoder, (*C.NV_ENC_MAP_INPUT_RESOURCE)(unsafe.Pointer(params))))
 	return err
 }
 
@@ -239,14 +242,14 @@ func (e *EncoderFunctions) invalidateRefFrames(encoder unsafe.Pointer, invalidRe
 	return err
 }
 
-func (e *EncoderFunctions) openEncodeSessionEx(params *OpenEncodeSessionParams) (unsafe.Pointer, error) {
+func (e *EncoderFunctions) openEncodeSessionEx(params *types.OpenEncodeSessionParams) (unsafe.Pointer, error) {
 	var encoder unsafe.Pointer
-	err := codeToError(C.callOpenEncodeSessionEx(e.openEncodeSessionExPtr, (*C.NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS)(params), &encoder))
+	err := codeToError(C.callOpenEncodeSessionEx(e.openEncodeSessionExPtr, (*C.NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS)(unsafe.Pointer(params)), &encoder))
 	return encoder, err
 }
 
-func (e *EncoderFunctions) registerResource(encoder unsafe.Pointer, registerResParams *REGISTER_RESOURCE_PARAMS) error {
-	err := codeToError(C.callRegisterResource(e.registerResourcePtr, encoder, (*C.NV_ENC_REGISTER_RESOURCE)(registerResParams)))
+func (e *EncoderFunctions) registerResource(encoder unsafe.Pointer, registerResParams *types.REGISTER_RESOURCE_PARAMS) error {
+	err := codeToError(C.callRegisterResource(e.registerResourcePtr, encoder, (*C.NV_ENC_REGISTER_RESOURCE)(unsafe.Pointer(registerResParams))))
 	return err
 }
 
@@ -255,13 +258,13 @@ func (e *EncoderFunctions) unregisterResource(encoder unsafe.Pointer, resource u
 	return err
 }
 
-func (e *EncoderFunctions) reconfigureEncoder(encoder unsafe.Pointer, params *RECONFIGURE_PARAMS) error {
-	err := codeToError(C.callReconfigureEncoder(e.reconfigureEncoderPtr, encoder, (*C.NV_ENC_RECONFIGURE_PARAMS)(params)))
+func (e *EncoderFunctions) reconfigureEncoder(encoder unsafe.Pointer, params *types.RECONFIGURE_PARAMS) error {
+	err := codeToError(C.callReconfigureEncoder(e.reconfigureEncoderPtr, encoder, (*C.NV_ENC_RECONFIGURE_PARAMS)(unsafe.Pointer(params))))
 	return err
 }
 
-func (e *EncoderFunctions) createMvBuffer(encoder unsafe.Pointer, createMVBufferParams *CREATE_MV_BUFFER_PARAMS) error {
-	err := codeToError(C.callCreateMvBuffer(e.createMvBufferPtr, encoder, (*C.NV_ENC_CREATE_MV_BUFFER)(createMVBufferParams)))
+func (e *EncoderFunctions) createMvBuffer(encoder unsafe.Pointer, createMVBufferParams *types.CREATE_MV_BUFFER_PARAMS) error {
+	err := codeToError(C.callCreateMvBuffer(e.createMvBufferPtr, encoder, (*C.NV_ENC_CREATE_MV_BUFFER)(unsafe.Pointer(createMVBufferParams))))
 	return err
 }
 
@@ -269,8 +272,8 @@ func (e *EncoderFunctions) destroyMvBuffer(encoder unsafe.Pointer, buffer unsafe
 	err := codeToError(C.callDestroyMvBuffer(e.destroyMvBufferPtr, encoder, (C.NV_ENC_OUTPUT_PTR)(buffer)))
 	return err
 }
-func (e *EncoderFunctions) runMotionEstimateOnly(encoder unsafe.Pointer, meOnlyParams *MOTION_ESTIMATE_ONLY_PARAMS) error {
-	err := codeToError(C.callRunMotionEstimateOnly(e.runMotionEstimateOnlyPtr, encoder, (*C.NV_ENC_MEONLY_PARAMS)(meOnlyParams)))
+func (e *EncoderFunctions) runMotionEstimateOnly(encoder unsafe.Pointer, meOnlyParams *types.MOTION_ESTIMATE_ONLY_PARAMS) error {
+	err := codeToError(C.callRunMotionEstimateOnly(e.runMotionEstimateOnlyPtr, encoder, (*C.NV_ENC_MEONLY_PARAMS)(unsafe.Pointer(meOnlyParams))))
 	return err
 }
 

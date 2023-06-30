@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
-#include "nvEncodeAPI.h"
+
+#include <nvEncodeAPI.h>
 
  static inline NV_ENC_CONFIG_H264* GetH264Config(NV_ENC_CODEC_CONFIG* c) {
  	return &c->h264Config;
@@ -39,7 +40,7 @@
  	c->enableNonRefP = 1;
  }
 
- static inline void ResetEncoder(NV_ENC_RECONFIGURE_PARAMS* p) {
+ static inline void SetResetEncoder(NV_ENC_RECONFIGURE_PARAMS* p) {
  	p->resetEncoder = 1;
  }
 

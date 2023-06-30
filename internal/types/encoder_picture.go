@@ -1,6 +1,7 @@
-package nvenc
+package types
 
-// #include "include/types.h"
+// #cgo CFLAGS: -I ../../include
+// #include <types.h>
 import "C"
 import "unsafe"
 
@@ -114,7 +115,7 @@ func (p *EncoderPictureParams) SetResolution(width, height uint32, pitch ...uint
 }
 
 // SetInputFormat tells encoder in which format is input
-func (p *EncoderPictureParams) SetInputFormat(format bufferFormat) {
+func (p *EncoderPictureParams) SetInputFormat(format BufferFormat) {
 	p.bufferFmt = C.NV_ENC_BUFFER_FORMAT(format)
 }
 
@@ -123,7 +124,7 @@ func (p *EncoderPictureParams) PicParamsH264() *PIC_PARAMS_H264 {
 	return (*PIC_PARAMS_H264)(C.GetPicParamsH264(&p.codecPicParams))
 }
 
-func newEncPicParams() *EncoderPictureParams {
+func NewEncPicParams() *EncoderPictureParams {
 	params := new(EncoderPictureParams)
 	params.version = C.NV_ENC_PIC_PARAMS_VER
 	params.pictureStruct = C.NV_ENC_PIC_STRUCT_FRAME

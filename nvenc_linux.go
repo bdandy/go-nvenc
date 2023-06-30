@@ -1,12 +1,5 @@
 package nvenc
 
-import "C"
-import (
-	"unsafe"
-
-	"github.com/rainycape/dl"
-)
-
 // #include "include/nvEncodeAPI.h"
 /*
 	typedef NVENCSTATUS (NVENCAPI* PNVENCODEAPICREATEINSTANCE) (NV_ENCODE_API_FUNCTION_LIST *functionList);
@@ -16,6 +9,12 @@ import (
 	}
 */
 import "C"
+
+import (
+	"unsafe"
+
+	"github.com/rainycape/dl"
+)
 
 var (
 	libEncode      *dl.DL

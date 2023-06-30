@@ -4,31 +4,34 @@ import "C"
 import (
 	"fmt"
 	"unsafe"
+
+	"github.com/bdandy/go-nvenc/v8/guid"
+	"github.com/bdandy/go-nvenc/v8/internal/types"
 )
 
 type Encoder struct {
 	instance unsafe.Pointer
 
-	encodeGUID codecGUID
-	presetGUID presetGUID
+	encodeGUID guid.CodecGUID
+	presetGUID guid.PresetGUID
 
-	initializeParams *InitializeParams
-	encoderConfig    *EncoderConfig
-	pictureParams    *EncoderPictureParams
-	inputBuffer      *CreateInputBuffer
-	inputBufferLock  *LockInputBufferParams
-	outputBuffer     *BitstreamBuffer
-	outputBufferLock *LockBitstreamParams
-	spsPayload       *SEQUENCE_PARAM_PAYLOAD
+	initializeParams *types.InitializeParams
+	encoderConfig    *types.EncoderConfig
+	pictureParams    *types.EncoderPictureParams
+	inputBuffer      *types.CreateInputBuffer
+	inputBufferLock  *types.LockInputBufferParams
+	outputBuffer     *types.BitstreamBuffer
+	outputBufferLock *types.LockBitstreamParams
+	spsPayload       *types.SEQUENCE_PARAM_PAYLOAD
 
 	functions *EncoderFunctions
 }
 
-func (e *Encoder) InitializeParams() *InitializeParams {
+func (e *Encoder) InitializeParams() *types.InitializeParams {
 	return e.initializeParams
 }
 
-func (e *Encoder) Config() *EncoderConfig {
+func (e *Encoder) Config() *types.EncoderConfig {
 	return e.encoderConfig
 }
 
@@ -41,7 +44,7 @@ func (e *Encoder) ForceIntraRefresh(frames uint32) {
 }
 
 // SetCodec sets encoding codec
-func (e *Encoder) SetCodec(codec codecGUID) error {
+func (e *Encoder) SetCodec(codec guid.CodecGUID) error {
 	guids, err := e.getGUIDs()
 	if err != nil {
 		return fmt.Errorf("get GUIDs: %w", err)
@@ -56,8 +59,22 @@ func (e *Encoder) SetCodec(codec codecGUID) error {
 	return nil
 }
 
+type guids interface {
+	guid.ProfileGUID | guid.PresetGUID | guid.CodecGUID
+}
+
+func hasGUID[T guids](slice []GUID, g T) bool {
+	for _, r := range slice {
+		if r == GUID(g) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // SetPreset sets pre-defined settings from encoder
-func (e *Encoder) SetPreset(guid presetGUID) error {
+func (e *Encoder) SetPreset(guid guid.PresetGUID) error {
 	e.presetGUID = guid
 
 	conf, err := e.functions.getPresetConfig(e.instance, e.encodeGUID, guid)
@@ -66,18 +83,18 @@ func (e *Encoder) SetPreset(guid presetGUID) error {
 	}
 
 	// bugfix missing RC struct version
-	conf.RC().setVersion()
+	conf.RC().SetVersion()
 
 	e.encoderConfig = conf
 
 	return nil
 }
 
-func (e *Encoder) GetInputFormats() ([]bufferFormat, error) {
+func (e *Encoder) GetInputFormats() ([]types.BufferFormat, error) {
 	return e.functions.getInputFormats(e.instance, e.encodeGUID)
 }
 
-func (e *Encoder) GetPresets() ([]presetGUID, error) {
+func (e *Encoder) GetPresets() ([]guid.PresetGUID, error) {
 	return e.functions.getPresetGUIDs(e.instance, e.encodeGUID)
 }
 
@@ -91,7 +108,7 @@ func (e *Encoder) SetFrameRate(num, den uint32) {
 	e.initializeParams.SetFrameRate(num, den)
 }
 
-func (e *Encoder) InitializeEncoder(inputFormat, outputFormat bufferFormat) (err error) {
+func (e *Encoder) InitializeEncoder(inputFormat, outputFormat types.BufferFormat) (err error) {
 	e.initializeParams.SetEncodeGUID(e.encodeGUID)
 	e.initializeParams.SetPresetGUID(e.presetGUID)
 	e.initializeParams.SetEncodeConfig(e.encoderConfig)
@@ -108,19 +125,19 @@ func (e *Encoder) InitializeEncoder(inputFormat, outputFormat bufferFormat) (err
 	}
 	e.pictureParams.SetInputBuffer(e.inputBuffer.GetBufferPtr())
 
-	e.inputBufferLock = newLockInputBufferParams(e.inputBuffer)
+	e.inputBufferLock = types.NewLockInputBufferParams(e.inputBuffer)
 
 	if err := e.functions.createBitstreamBuffer(e.instance, e.outputBuffer); err != nil {
 		return err
 	}
 	e.pictureParams.SetOutputBuffer(e.outputBuffer.GetBufferPtr())
-	e.outputBufferLock = newBitstreamBufferLock(e.outputBuffer)
+	e.outputBufferLock = types.NewBitstreamBufferLock(e.outputBuffer)
 
 	return nil
 }
 
 func (e *Encoder) Reset() error {
-	var params RECONFIGURE_PARAMS
+	var params types.RECONFIGURE_PARAMS
 	e.initializeParams.SetPresetGUID(e.presetGUID)
 	e.initializeParams.SetEncodeConfig(e.encoderConfig)
 	params.SetInitializeParams(*e.initializeParams)
@@ -196,7 +213,7 @@ func (e *Encoder) InvalidateRefFrames(timestamp uint64) error {
 	return e.functions.invalidateRefFrames(e.instance, timestamp)
 }
 
-func (e *Encoder) Picture() *EncoderPictureParams {
+func (e *Encoder) Picture() *types.EncoderPictureParams {
 	return e.pictureParams
 }
 
@@ -238,6 +255,14 @@ func (e *Encoder) Destroy() error {
 	return nil
 }
 
+func (e *Encoder) getGUIDs() ([]guid.GUID, error) {
+	count, err := e.functions.getGUIDCount(e.instance)
+	if err != nil {
+		return nil, fmt.Errorf("getGUIDCount error: %w", err)
+	}
+	return e.functions.getGUIDs(e.instance, count)
+}
+
 // NewEncoder returns initialized encoder instance for chosen Codec (h264,hevc) with output buffer allocated to bufSize
 func NewEncoder(bufSize uint32) (*Encoder, error) {
 	enc, err := newEncoder(bufSize)
@@ -258,12 +283,12 @@ func newEncoder(bufSize uint32) (*Encoder, error) {
 
 	enc := &Encoder{
 		functions:        functions,
-		inputBuffer:      newCreateInputBuffer(),
-		outputBuffer:     newBitstreamBuffer(bufSize),
-		initializeParams: newInitializeParams(),
-		encoderConfig:    newEncoderConfig(),
-		pictureParams:    newEncPicParams(),
-		spsPayload:       newSequenceParamPayload(),
+		inputBuffer:      types.NewCreateInputBuffer(),
+		outputBuffer:     types.NewBitstreamBuffer(bufSize),
+		initializeParams: types.NewInitializeParams(),
+		encoderConfig:    types.NewEncoderConfig(),
+		pictureParams:    types.NewEncPicParams(),
+		spsPayload:       types.NewSequenceParamPayload(),
 	}
 
 	return enc, nil
