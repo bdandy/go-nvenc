@@ -1,7 +1,7 @@
 package guid
 
 // #cgo CFLAGS: -I ../include
-// #include <guid.h>
+// #include "guid.h"
 import "C"
 import "unsafe"
 

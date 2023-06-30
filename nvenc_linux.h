@@ -1,0 +1,7 @@
+#include <nvEncodeAPI.h>
+
+ typedef NVENCSTATUS (NVENCAPI* PNVENCODEAPICREATEINSTANCE) (NV_ENCODE_API_FUNCTION_LIST *functionList);
+
+ static inline NVENCSTATUS callCreateInstance(PNVENCODEAPICREATEINSTANCE fn, NV_ENCODE_API_FUNCTION_LIST* list) {
+		return fn(list);
+ };

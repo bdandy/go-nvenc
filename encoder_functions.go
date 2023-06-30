@@ -1,7 +1,7 @@
 package nvenc
 
 // #cgo CFLAGS: -I ./include
-// #include <functions.h>
+// #include "encoder_functions.h"
 import "C"
 import (
 	"fmt"

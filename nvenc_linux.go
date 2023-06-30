@@ -1,13 +1,7 @@
 package nvenc
 
-// #include "include/nvEncodeAPI.h"
-/*
-	typedef NVENCSTATUS (NVENCAPI* PNVENCODEAPICREATEINSTANCE) (NV_ENCODE_API_FUNCTION_LIST *functionList);
-
-	static inline NVENCSTATUS callCreateInstance(PNVENCODEAPICREATEINSTANCE fn, void* list) {
-		return fn(list);
-	}
-*/
+// #cgo CFLAGS: -I ./include
+// #include "nvenc_linux.h"
 import "C"
 
 import (
@@ -34,6 +28,6 @@ func init() {
 }
 
 func callCreateInstance(functions *EncoderFunctions) error {
-	ret := C.callCreateInstance((*[0]byte)(createInstance), unsafe.Pointer(functions))
+	ret := C.callCreateInstance((*[0]byte)(createInstance), (*C.NV_ENCODE_API_FUNCTION_LIST)(unsafe.Pointer(functions)))
 	return codeToError(C.int(ret))
 }
